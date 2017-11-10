@@ -20,8 +20,26 @@
 (*                                                                            *)
 (******************************************************************************)
 
+open ExtPervasives
+
+module Prefix =
+  struct
+    type prefix =
+      | Servername of string
+      | NickUserHost of NickUserHost.t
+
+    type t = prefix option
+
+    let pp_print ppf = function
+      | None -> ()
+      | Some (Servername s) ->
+         fpf ppf ":%s" s
+      | Some (NickUserHost nuh) ->
+         fpf ppf ":%a " NickUserHost.pp_print nuh
+  end
+
 type t =
-  { prefix : string option ;
+  { prefix : Prefix.t ;
     command : Command.t }
 
 let make prefix command =
@@ -29,19 +47,13 @@ let make prefix command =
 let make_noprefix command =
   { prefix = None ; command }
 
-let pp_print ?(crlf=false) ppf m =
-  (
-    match m.prefix with
-    | None -> ()
-    | Some prefix -> Format.fprintf ppf ":%s " prefix
-  );
-  Format.fprintf ppf "%a" Command.pp_print m.command;
-  if crlf then Format.fprintf ppf "\r\n"
+let pp_print ppf m =
+  fpf ppf "%a%a" Prefix.pp_print m.prefix Command.pp_print m.command
 
-let to_string ?(crlf=false) m =
+let to_string m =
   let buf = Buffer.create 8 in
   let ppf = Format.formatter_of_buffer buf in
-  pp_print ~crlf ppf m;
+  pp_print ppf m;
   Format.pp_flush_formatter ppf;
   Buffer.contents buf
 
@@ -54,7 +66,7 @@ let from_string str =
     | ':' ->
        NegLexing.next_char lb;
        (
-         try Some (NegLexing.next_sep ' ' lb)
+         try Some (Prefix.NickUserHost (NickUserHost.from_string (NegLexing.next_sep ' ' lb)))
          with Not_found -> raise (Invalid_argument "Message.from_string: found a prefix but no command")
        )
     | _ ->
