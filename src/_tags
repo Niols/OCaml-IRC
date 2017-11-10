@@ -1,0 +1,2 @@
+<ext>: include
+<*.cmx> and not <IRC.cmx>: for-pack(IRC)
