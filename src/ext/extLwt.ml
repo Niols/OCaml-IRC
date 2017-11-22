@@ -20,11 +20,12 @@
 (*                                                                            *)
 (******************************************************************************)
 
-let fpf = Format.fprintf
+type ('a, 'b) pair =
+  | First of 'a
+  | Second of 'b
 
-let (||>) f g x = f x |> g
-
-let unwrap x =
-  match x with
-  | None -> raise (Invalid_argument "unwrap")
-  | Some y -> y
+let choose_pair at bt =
+  Lwt.choose [
+      Lwt.bind at (fun a -> Lwt.return (First a)) ;
+      Lwt.bind bt (fun b -> Lwt.return (Second b))
+    ]

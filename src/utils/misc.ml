@@ -20,11 +20,16 @@
 (*                                                                            *)
 (******************************************************************************)
 
-let fpf = Format.fprintf
-
-let (||>) f g x = f x |> g
-
-let unwrap x =
-  match x with
-  | None -> raise (Invalid_argument "unwrap")
-  | Some y -> y
+(* Because of IRC's Scandinavian origin, the characters {}|^ are
+   considered to be the lower case equivalents of the characters []\~,
+   respectively. This is a critical issue when determining the
+   equivalence of two nicknames or channel names. *)
+let lowercase b =
+  Bytes.lowercase_ascii b
+  |> Bytes.iteri
+       (fun i -> function
+         | '[' -> Bytes.set b i '{'
+         | ']' -> Bytes.set b i '}'
+         | '\\' -> Bytes.set b i '|'
+         | '~' -> Bytes.set b i '^'
+         | _ -> ())

@@ -27,14 +27,14 @@ type keyed_channel = channel * string option
 type mask = string
 type service = string
 type server = string
-
+             
 type t =
   (* These commands are taken from RFC 2812 *)
 
   (* 3.1 Connection Registration *)
   | Pass of string
-  | Nick of nick
-  | User of nick * mode * string
+  | Nick of Nickname.t
+  | User of Nickname.t * mode * string
   | Oper of string * string
   (* | Mode of string * string list *) (*FIXME: chan vs. user modes*)
   | Service of string * string * string * string * string * string

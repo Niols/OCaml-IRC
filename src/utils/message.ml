@@ -47,13 +47,14 @@ let make prefix command =
 let make_noprefix command =
   { prefix = None ; command }
 
-let pp_print ppf m =
-  fpf ppf "%a%a" Prefix.pp_print m.prefix Command.pp_print m.command
+let pp_print ?(crlf=false) ppf m =
+  fpf ppf "%a%a" Prefix.pp_print m.prefix Command.pp_print m.command;
+  if crlf then fpf ppf "\r\n"
 
-let to_string m =
+let to_string ?(crlf=false) m =
   let buf = Buffer.create 8 in
   let ppf = Format.formatter_of_buffer buf in
-  pp_print ppf m;
+  pp_print ~crlf ppf m;
   Format.pp_flush_formatter ppf;
   Buffer.contents buf
 

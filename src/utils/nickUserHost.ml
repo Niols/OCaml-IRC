@@ -20,11 +20,43 @@
 (*                                                                            *)
 (******************************************************************************)
 
-let fpf = Format.fprintf
+open ExtPervasives
 
-let (||>) f g x = f x |> g
+type t =
+  { nick : Nickname.t ;
+    user : string ;
+    host : string }
 
-let unwrap x =
-  match x with
-  | None -> raise (Invalid_argument "unwrap")
-  | Some y -> y
+let is_valid nuh =
+  Nickname.is_valid nuh.nick
+  && not (nuh.user <> "" && nuh.host = "")
+
+let pp_print ppf nuh =
+  Nickname.pp_print ppf nuh.nick ;
+  if nuh.user <> "" then fpf ppf "!%s" nuh.user;
+  if nuh.host <> "" then fpf ppf "%@%s" nuh.host
+
+let from_string str =
+  let buf = NegLexing.of_string str in
+  match NegLexing.next_sep '!' buf with
+  | exception Not_found ->
+     (
+       match NegLexing.next_sep '@' buf with
+       | exception Not_found ->
+          { nick = Nickname.from_string (NegLexing.remaining buf) ;
+            user = "" ;
+            host = "" }
+       | nick ->
+          { nick = Nickname.from_string nick ;
+            user = "" ;
+            host = NegLexing.remaining buf }
+     )
+  | nick ->
+     (
+       match NegLexing.next_sep '@' buf with
+       | exception Not_found -> raise (Invalid_argument "Nuh.from_string")
+       | user ->
+          { nick = Nickname.from_string nick ;
+            user ;
+            host = NegLexing.remaining buf }
+     )
