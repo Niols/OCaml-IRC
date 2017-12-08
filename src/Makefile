@@ -8,8 +8,7 @@ endif
 
 
 all:
-	$(OCB) IRC.cma IRC.cmxa IRC.cmxs
+	$(OCB) irc.cma irc.cmxa irc.cmxs
 
 clean:
 	$(OCB) -clean
-

@@ -55,7 +55,7 @@ let to_string ?(crlf=false) m =
   let buf = Buffer.create 8 in
   let ppf = Format.formatter_of_buffer buf in
   pp_print ~crlf ppf m;
-  Format.pp_flush_formatter ppf;
+  Format.pp_print_flush ppf ();
   Buffer.contents buf
 
 let from_string str =

@@ -1,17 +1,9 @@
 # Tags for OCamlBuild
 
 true: color(auto)
+true: package(unix)
+true: package(lwt), package(lwt.log), package(lwt.unix), package(lwt.ppx)
 
-# ext
 <ext>: include
-<ext/extLwt.ml>: package(lwt), package(lwt.ppx)
-
-# server
-<server.ml>: package(lwt), package(lwt.ppx)
-
-# utils
-<utils/*.cmx> and not <utils/utils.cmx>: for-pack(IRC.Utils)
-<utils>: include
-
-# root
-<*.cmx> and not <IRC.cmx>: for-pack(IRC)
+<utils/*.cmx> and not <utils/utils.cmx>: for-pack(Irc.Utils)
+<*.cmx> and not <irc.cmx>: for-pack(Irc)

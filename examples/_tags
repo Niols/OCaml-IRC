@@ -1,0 +1,3 @@
+
+true: use_irc
+true: package(lwt), package(lwt.log), package(lwt.unix)

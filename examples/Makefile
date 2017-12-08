@@ -1,7 +1,9 @@
 .PHONY: all clean
 
+OCB = ocamlbuild -use-ocamlfind
+
 all:
-	@echo "Nothing to do."
+	$(OCB) server.byte
 
 clean:
-	@echo "Nothing to do."
+	$(OCB) -clean

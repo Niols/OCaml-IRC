@@ -66,17 +66,15 @@ type event =
   | NewConnection of connection
 
 exception DropConnection
-                   
+
 class virtual skeleton = object (self)
-  val nicknames = Hashtbl.create 10
-  val channels = Hashtbl.create 10
   val mutable socket = None
 
-  method virtual on_user : Utils.Nickname.t -> Utils.Command.mode -> string -> unit Lwt.t
-  method virtual on_nick : Utils.Nickname.t -> unit Lwt.t
-  method virtual on_privmsg : unit Lwt.t
-  method virtual on_ping : Utils.Command.server -> Utils.Command.server option -> unit Lwt.t
-  method virtual on_pong : Utils.Command.server -> Utils.Command.server option -> unit Lwt.t
+  method virtual on_user : connection -> Utils.Nickname.t -> Utils.Command.mode -> string -> unit Lwt.t
+  method virtual on_nick : connection -> Utils.Nickname.t -> unit Lwt.t
+  method virtual on_privmsg : connection -> unit Lwt.t
+  method virtual on_ping : connection -> Utils.Command.server -> Utils.Command.server option -> unit Lwt.t
+  method virtual on_pong : connection -> Utils.Command.server -> Utils.Command.server option -> unit Lwt.t
 
   method handle_message (conn: connection) (msg: Utils.Message.t) : bool Lwt.t =
     let open Utils in
@@ -85,22 +83,22 @@ class virtual skeleton = object (self)
       (
         match msg.Message.command with
         | Nick nick ->
-           self#on_nick nick
+           self#on_nick conn nick
         | User (user, mode, real) ->
-           self#on_user user mode real
+           self#on_user conn user mode real
         | Ping (source, target) ->
-           self#on_ping source target
+           self#on_ping conn source target
         | Pong (source, target) ->
-           self#on_pong source target
+           self#on_pong conn source target
         | _ ->
-           warning "That message was unexpected"
+           warning_f "That message was unexpected: %s" (Message.to_string msg)
            >>= (fun () -> Lwt.fail DropConnection)
       )
       >>= (fun () -> Lwt.return_true)
     with
       DropConnection ->
       Lwt.return_false
-               
+
   method accept () =
     Lwt_unix.accept (unwrap socket)
     >>= fun (fd, sockaddr) ->
@@ -112,7 +110,7 @@ class virtual skeleton = object (self)
 
   method loop accepter listeners : unit Lwt.t =
     (* FIXME: add pings *)
-    
+
     (* we run in parallel the accepter and all the listeners *)
     match%lwt ExtLwt.choose_pair accepter (Lwt.nchoose_split listeners) with
 
@@ -156,4 +154,36 @@ class virtual skeleton = object (self)
     Lwt_main.run (self#run ());
     assert false
 end
-                       
+
+type config =
+  { server_name : string }
+
+let default_config =
+  { server_name = "127.0.0.1" } (*FIXME*)
+  
+class server config = object (self)
+  inherit skeleton as skeleton
+        
+  val nicknames = Hashtbl.create 8
+  val channels = Hashtbl.create 8
+               
+  method on_ping conn source _target =
+    (*FIXME: check that target=None?*)
+    let open Utils in
+    Message.make
+      (Message.Prefix.Servername config.server_name)
+      (Command.Pong (config.server_name, Some source))
+    |> conn#send
+    
+  method on_pong _conn _source _target =
+    Lwt.return ()
+    
+  method on_user _conn _user _mode _real =
+    Lwt.return ()
+    
+  method on_nick _conn _nick =
+    Lwt.return ()
+    
+  method on_privmsg _conn =
+    Lwt.return ()
+end
