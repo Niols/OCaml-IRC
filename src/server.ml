@@ -21,9 +21,12 @@
 (******************************************************************************)
 
 open ExtPervasives
+open Utils
 
 let (>>=) = Lwt.bind
 
+let debug = Lwt_log.debug
+let debug_f = Lwt_log.debug_f
 let info = Lwt_log.info
 let info_f = Lwt_log.info_f
 let warning = Lwt_log.warning
@@ -31,32 +34,37 @@ let warning_f = Lwt_log.warning_f
 let error = Lwt_log.error
 let error_f = Lwt_log.error_f
 
-class connection fd sockaddr identity = object (self)
+class connection fd sockaddr = object (self)
 
   val input = Lwt_io.of_fd ~mode:Lwt_io.input fd
   val output = Lwt_io.of_fd ~mode:Lwt_io.output fd
-  val hostname = (Unix.getnameinfo sockaddr []).Unix.ni_hostname
-  val identity = identity
+  val mutable identity =
+    Identity.make (Nickname.of_string "") "" (Unix.getnameinfo sockaddr []).Unix.ni_hostname
 
-  method hostname = hostname
-               
+  method identity = identity
+  method set_identity (id: Identity.t) : unit =
+    identity <- id
+
   method send message =
-    Lwt_io.write output (Utils.Message.to_string ~crlf:true message)
+    debug_f "[>>> %s] %s" identity.Identity.host (Message.to_string message)
+    >> Lwt_io.write output (Message.to_string ~crlf:true message)
 
-  method send_multiple messages =
+  method send_multiple messages : unit Lwt.t =
     Lwt_list.iter_s (self#send) messages
 
   method receive () =
     Lwt_io.read_line input
     >>= (fun line ->
       try%lwt
-        Lwt.return (Utils.Message.from_string line)
+        let msg = Message.from_string line in
+        debug_f "[<<< %s] %s" identity.Identity.host (Message.to_string msg)
+        >> Lwt.return msg
       with
       | End_of_file ->
          raise End_of_file
       | Lwt_io.Channel_closed descr ->
          warning_f "Lwt_io.Channel_closed(%s)" descr
-         >>= self#receive
+         >>= self#receive (*really?*)
       | Unix.Unix_error (error, fname, fparam) ->
          error_f "Unix_error(%s, %s, %s)" (Unix.error_message error) fname fparam
          >>= self#receive
@@ -69,19 +77,19 @@ end
 exception DropConnection
 
 type event =
-  | Message of Utils.Message.t
+  | Message of Message.t
   | Exception of exn
-                          
+
 class virtual skeleton = object (self)
   val mutable socket = None
 
-  method virtual on_user : connection -> Utils.Nickname.t -> Utils.Command.mode -> string -> unit Lwt.t
-  method virtual on_nick : connection -> Utils.Nickname.t -> unit Lwt.t
+  method virtual on_user : connection -> Nickname.t -> Command.mode -> string -> unit Lwt.t
+  method virtual on_nick : connection -> Nickname.t -> unit Lwt.t
   method virtual on_privmsg : connection -> unit Lwt.t
-  method virtual on_ping : connection -> Utils.Command.server -> Utils.Command.server option -> unit Lwt.t
-  method virtual on_pong : connection -> Utils.Command.server -> Utils.Command.server option -> unit Lwt.t
+  method virtual on_ping : connection -> Command.server -> Command.server option -> unit Lwt.t
+  method virtual on_pong : connection -> Command.server -> Command.server option -> unit Lwt.t
 
-  method handle_message (conn: connection) (msg: Utils.Message.t) : unit Lwt.t =
+  method handle_message (conn: connection) (msg: Message.t) : unit Lwt.t =
     let open Utils in
     let open Command in
     match msg.Message.command with
@@ -100,10 +108,7 @@ class virtual skeleton = object (self)
   method accept () =
     Lwt_unix.accept (unwrap socket)
     >>= (fun (fd, sockaddr) ->
-      new connection fd sockaddr Utils.Identity.{
-             nick = Utils.Nickname.of_string "" ;
-             user = "" ;
-             host = "" }
+      new connection fd sockaddr
       |> Lwt.return)
 
   method listen (conn: connection) =
@@ -125,7 +130,7 @@ class virtual skeleton = object (self)
     | ExtLwt.First conn ->
        (* in the case, we keep accepting stuff, and we start listening
           on the new connection. FIXME: stop listening if max_clients *)
-       info_f "Accepted connection from %s" conn#hostname
+       info_f "Accepted connection from %s" conn#identity.Identity.host
        >> self#loop (self#accept ()) ((self#listen conn) :: listeners)
 
     (* second case: some listener/s answered *)
@@ -143,16 +148,16 @@ class virtual skeleton = object (self)
                   >> Lwt.return ((self#listen conn) :: listeners)
                 with
                   DropConnection ->
-                  info_f "Dropping connection with %s" conn#hostname
+                  info_f "Dropping connection with %s" conn#identity.Identity.host
                   >> Lwt.return listeners
               )
            | Exception DropConnection ->
-              info_f "Dropping connection with %s" conn#hostname
+              info_f "Dropping connection with %s" conn#identity.Identity.host
               >> Lwt.return listeners
            | Exception e ->
               info_f
                 ~exn:e
-                "Dropping connection with %s" conn#hostname
+                "Dropping connection with %s" conn#identity.Identity.host
               >> Lwt.return listeners)
          remaining_listeners
          values
@@ -197,6 +202,16 @@ class server config = object (self)
   val nicknames = Hashtbl.create 8
   val channels = Hashtbl.create 8
 
+  method welcome (conn: connection) : unit Lwt.t =
+    let make_me = Message.(make (Prefix.Servername config.server_name)) in
+    conn#send_multiple
+      [
+        make_me (Command.RplWelcome  (conn#identity.Identity.nick, "Welcome!")) ;
+        make_me (Command.RplYourhost (conn#identity.Identity.nick, "I will be your host")) ;
+        make_me (Command.RplCreated  (conn#identity.Identity.nick, "I wasn't created long ago")) ;
+        make_me (Command.RplMyinfo   (conn#identity.Identity.nick, []))
+    ]
+
   method on_ping conn source _target =
     (*FIXME: check that target=None?*)
     let open Utils in
@@ -208,12 +223,20 @@ class server config = object (self)
   method on_pong _conn _source _target =
     Lwt.return ()
 
-  method on_user _conn _user _mode _real =
-    Lwt.return ()
+  method on_user conn user _mode _real =
+    let identity = conn#identity in
+    conn#set_identity { identity with Identity.user };
+    if Identity.is_valid conn#identity then
+      self#welcome conn
+    else
+      Lwt.return ()
 
-  method on_nick _conn _nick =
-    Lwt.return ()
+  method on_nick conn nick =
+    (*FIXME: check that it is available, update database*)
+    let identity = conn#identity in
+    conn#set_identity { identity with Identity.nick };
+    conn#send (Message.make (Message.Prefix.Identity identity) (Command.Nick nick))
 
   method on_privmsg _conn =
-    Lwt.return ()
+    debug "Got PRIVMSG"
 end

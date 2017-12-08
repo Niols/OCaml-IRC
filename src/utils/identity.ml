@@ -27,6 +27,8 @@ type t =
     user : string ;
     host : string }
 
+let make nick user host = { nick ; user ; host }
+  
 let is_valid nuh =
   Nickname.is_valid nuh.nick
   && not (nuh.user <> "" && nuh.host = "")

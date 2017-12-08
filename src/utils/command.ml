@@ -92,6 +92,13 @@ type t =
 
 let fpf = Format.fprintf
 
+let rec pp_params ppf = function
+  | [] -> ()
+  | [param] -> fpf ppf " :%s" param
+  | param :: params ->
+     (* assert param does not contain spaces *)
+     fpf ppf " %s%a" param pp_params params
+        
 let pp_print ppf = function
 
   (* JOIN *)
@@ -147,8 +154,8 @@ let pp_print ppf = function
      fpf ppf "002 %s :%s" nick msg
   | RplCreated (nick, msg) ->
      fpf ppf "003 %s :%s" nick msg
-  (* | RplMyinfo (nick, msgs) -> *)
-  (*    fpf ppf "004 %s%a" nick pp_params msgs *)
+  | RplMyinfo (nick, msgs) ->
+     fpf ppf "004 %s%a" nick pp_params msgs
 
   | _ -> assert false
 

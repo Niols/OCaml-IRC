@@ -1,6 +1,6 @@
 
 let () =
-  Lwt_log_core.append_rule "*" Lwt_log_core.Info
+  Lwt_log_core.append_rule "*" Lwt_log_core.Debug
 
 let () =
   Lwt_log.default :=
