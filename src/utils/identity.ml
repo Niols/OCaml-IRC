@@ -43,20 +43,20 @@ let from_string str =
      (
        match NegLexing.next_sep '@' buf with
        | exception Not_found ->
-          { nick = Nickname.from_string (NegLexing.remaining buf) ;
+          { nick = Nickname.of_string (NegLexing.remaining buf) ;
             user = "" ;
             host = "" }
        | nick ->
-          { nick = Nickname.from_string nick ;
+          { nick = Nickname.of_string nick ;
             user = "" ;
             host = NegLexing.remaining buf }
      )
   | nick ->
      (
        match NegLexing.next_sep '@' buf with
-       | exception Not_found -> raise (Invalid_argument "Nuh.from_string")
+       | exception Not_found -> raise (Invalid_argument "Identity.from_string")
        | user ->
-          { nick = Nickname.from_string nick ;
+          { nick = Nickname.of_string nick ;
             user ;
             host = NegLexing.remaining buf }
      )

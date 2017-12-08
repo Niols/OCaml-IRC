@@ -29,4 +29,4 @@ let is_valid nick = true (*FIXME*)
 let pp_print ppf nick =
   fpf ppf "%s" nick
 
-let from_string nick = nick
+let of_string nick = nick

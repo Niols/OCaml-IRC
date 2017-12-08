@@ -2,5 +2,5 @@ utils/Channel
 utils/Command
 utils/Message
 utils/Misc
-utils/NickUserHost
 utils/Nickname
+utils/Identity

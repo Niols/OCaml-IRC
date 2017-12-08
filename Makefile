@@ -1,7 +1,5 @@
 .PHONY: all src examples clean
 
-all: src examples
-
 src:
 	$(MAKE) -C src
 	mkdir -p lib && cp src/_build/irc.* lib

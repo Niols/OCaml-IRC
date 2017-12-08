@@ -26,7 +26,7 @@ module Prefix =
   struct
     type prefix =
       | Servername of string
-      | NickUserHost of NickUserHost.t
+      | Identity of Identity.t
 
     type t = prefix option
 
@@ -34,8 +34,8 @@ module Prefix =
       | None -> ()
       | Some (Servername s) ->
          fpf ppf ":%s" s
-      | Some (NickUserHost nuh) ->
-         fpf ppf ":%a " NickUserHost.pp_print nuh
+      | Some (Identity id) ->
+         fpf ppf ":%a " Identity.pp_print id
   end
 
 type t =
@@ -67,7 +67,7 @@ let from_string str =
     | ':' ->
        NegLexing.next_char lb;
        (
-         try Some (Prefix.NickUserHost (NickUserHost.from_string (NegLexing.next_sep ' ' lb)))
+         try Some (Prefix.Identity (Identity.from_string (NegLexing.next_sep ' ' lb)))
          with Not_found -> raise (Invalid_argument "Message.from_string: found a prefix but no command")
        )
     | _ ->
