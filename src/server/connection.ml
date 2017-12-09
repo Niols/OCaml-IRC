@@ -21,14 +21,55 @@
 (******************************************************************************)
 
 open ExtPervasives
+open Utils
 
-type t = string
+let (>>=) = Lwt.bind
 
-let is_valid nick = true (*FIXME*)
+let debug = Lwt_log.debug
+let debug_f = Lwt_log.debug_f
+let info = Lwt_log.info
+let info_f = Lwt_log.info_f
+let warning = Lwt_log.warning
+let warning_f = Lwt_log.warning_f
+let error = Lwt_log.error
+let error_f = Lwt_log.error_f
 
-let pp_print ppf nick =
-  fpf ppf "%s" nick
+class connection fd sockaddr = object (self)
 
-let to_string nick = nick
-  
-let of_string nick = nick
+  val input = Lwt_io.of_fd ~mode:Lwt_io.input fd
+  val output = Lwt_io.of_fd ~mode:Lwt_io.output fd
+  val mutable identity =
+    Identity.make (Nickname.of_string "") "" (Unix.getnameinfo sockaddr []).Unix.ni_hostname
+
+  method identity = identity
+  method set_identity (id: Identity.t) : unit =
+    identity <- id
+
+  method send message =
+    debug_f "[>>> %s] %s" identity.Identity.host (Message.to_string message)
+    >> Lwt_io.write output (Message.to_string ~crlf:true message)
+
+  method send_multiple messages : unit Lwt.t =
+    Lwt_list.iter_s (self#send) messages
+
+  method receive () =
+    Lwt_io.read_line input
+    >>= (fun line ->
+      try%lwt
+        let msg = Message.from_string line in
+        debug_f "[<<< %s] %s" identity.Identity.host (Message.to_string msg)
+        >> Lwt.return msg
+      with
+      | End_of_file ->
+         raise End_of_file
+      | Lwt_io.Channel_closed descr ->
+         warning_f "Lwt_io.Channel_closed(%s)" descr
+         >>= self#receive (*really?*)
+      | Unix.Unix_error (error, fname, fparam) ->
+         error_f "Unix_error(%s, %s, %s)" (Unix.error_message error) fname fparam
+         >>= self#receive
+      | _ ->
+         error "unexpected error"
+         >>= self#receive
+    )
+end

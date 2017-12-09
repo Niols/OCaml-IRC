@@ -35,7 +35,7 @@ module Prefix =
       | Some (Servername s) ->
          fpf ppf ":%s" s
       | Some (Identity id) ->
-         fpf ppf ":%a " Identity.pp_print id
+         fpf ppf ":%a" Identity.pp_print id
   end
 
 type t =

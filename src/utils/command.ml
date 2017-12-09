@@ -138,6 +138,7 @@ let pp_print ppf = function
   | Privmsg (target, message) ->
      fpf ppf "PRIVMSG %s :%s" target message
 
+  (* 3.7 Miscellaneous messages *)
   | Ping (server, None) ->
      fpf ppf "PING :%s" server
   | Ping (server1, Some server2) ->
@@ -146,7 +147,9 @@ let pp_print ppf = function
      fpf ppf "PONG :%s" server
   | Pong (server1, Some server2) ->
      fpf ppf "PONG %s :%s" server1 server2
-
+  | Error message ->
+     fpf ppf "ERROR :%s" message
+    
   (* 5.1 Command responses *)
   | RplWelcome (nick, msg) ->
      fpf ppf "001 %s :%s" nick msg

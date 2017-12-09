@@ -7,5 +7,5 @@ let () =
     Lwt_log.channel ~close_mode:`Keep ~channel:Lwt_io.stderr ()
   
 let () =
-  let server = new Irc.Server.server Irc.Server.default_config in
+  let server = new Irc.Server.Simple.server Irc.Server.Simple.default_config in
   server#start ()
