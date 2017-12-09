@@ -64,12 +64,14 @@ class connection fd sockaddr = object (self)
          raise End_of_file
       | Lwt_io.Channel_closed descr ->
          warning_f "Lwt_io.Channel_closed(%s)" descr
-         >>= self#receive (*really?*)
+         >> raise End_of_file
+      | Message.Malformed m ->
+         raise (Message.Malformed m)
       | Unix.Unix_error (error, fname, fparam) ->
          error_f "Unix_error(%s, %s, %s)" (Unix.error_message error) fname fparam
          >>= self#receive
-      | _ ->
-         error "unexpected error"
+      | e ->
+         error ~exn:e "unexpected error (ignoring)"
          >>= self#receive
     )
 end

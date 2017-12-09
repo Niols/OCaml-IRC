@@ -22,12 +22,11 @@
 
 type nick = string
 type mode = string
-type channel = string
-type keyed_channel = channel * string option
 type mask = string
 type service = string
 type server = string
-             
+type keyed_channel = Channel.t * Channel.key option
+
 type t =
   (* These commands are taken from RFC 2812 *)
 
@@ -43,7 +42,7 @@ type t =
 
   (* 3.2 Channel operations *)
   | Join of keyed_channel list
-  | Part of channel list * string
+  | Part of Channel.t list * string
   | Mode of string * string list
   | Topic of string * string option
   | Names of string option * string option
@@ -98,7 +97,7 @@ let rec pp_params ppf = function
   | param :: params ->
      (* assert param does not contain spaces *)
      fpf ppf " %s%a" param pp_params params
-        
+
 let pp_print ppf = function
 
   (* JOIN *)
@@ -122,7 +121,7 @@ let pp_print ppf = function
        List.filter (fun o -> o <> None) keys
        |> List.map (function Some k -> k | None -> assert false)
      in
-     fpf ppf " %s" (String.concat "," channels);
+     fpf ppf " %s" (String.concat "," (List.map Channel.to_string channels));
      if keys <> [] then
        fpf ppf " %s" (String.concat "," keys)
 
@@ -149,7 +148,7 @@ let pp_print ppf = function
      fpf ppf "PONG %s :%s" server1 server2
   | Error message ->
      fpf ppf "ERROR :%s" message
-    
+
   (* 5.1 Command responses *)
   | RplWelcome (nick, msg) ->
      fpf ppf "001 %s :%s" nick msg
@@ -163,6 +162,7 @@ let pp_print ppf = function
   | _ -> assert false
 
 
+exception Malformed of string * string list
 
 let from_strings command params =
   match command , params with
@@ -171,22 +171,16 @@ let from_strings command params =
   | "JOIN" , ["0"] ->
      Join []
   | "JOIN" , [channels] ->
-     let keyed_channels =
-       String.split_on_char ',' channels
-       |> List.map (fun channel -> (channel, None))
-     in
-     Join keyed_channels
-  (* | "JOIN" , [channels; keys] -> *)
-  (*    let keyed_channels = *)
-  (*      list_map2_opt *)
-  (*        (fun co ko -> *)
-  (*          match co with *)
-  (*          | None -> raise (Invalid_argument "Command.from_strings: Join messages cannot have more keys than channels") *)
-  (*          | Some c -> (c, ko)) *)
-  (*        (String.split_on_char ',' channels) *)
-  (*        (String.split_on_char ',' keys) *)
-  (*    in *)
-  (*    Join keyed_channels *)
+     (
+       try
+         let keyed_channels =
+           String.split_on_char ',' channels
+           |> List.map (fun channel -> (Channel.of_string channel, None))
+         in
+         Join keyed_channels
+       with
+         Invalid_argument _ -> raise (Malformed (command, params))
+     )
 
   (* RFC 2812 ; 3.1.2 Nick message *)
   | "NICK" , [nick] ->
@@ -206,4 +200,4 @@ let from_strings command params =
 
   (* others *)
   | _ ->
-     raise (Invalid_argument (Format.sprintf "Command.from_strings: unknown command \"%s\"" command))
+     raise (Malformed (command, params))

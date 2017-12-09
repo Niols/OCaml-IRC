@@ -115,10 +115,13 @@ class virtual skeleton = object (self)
               info_f "Closed connection: %s" conn#identity.Identity.host
               >> self#on_close_connection conn
               >> Lwt.return listeners
+           | Exception (Message.Malformed msg) ->
+              conn#send Message.(make_noprefix (Command.Error (Format.sprintf "malformed message: %s" msg)))
+              >> Lwt.return ((self#listen conn) :: listeners)
            | Exception e ->
               warning_f
                 ~exn:e
-                "Unexpected exception; dropping connection with %s" conn#identity.Identity.host
+                "[%s] Dropping connection because of unexpected exception" conn#identity.Identity.host
               >> self#on_close_connection conn
               >> Lwt.return listeners)
          remaining_listeners
