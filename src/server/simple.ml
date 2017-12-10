@@ -73,10 +73,10 @@ class server config = object (self)
     self#send_commands
       conn
       [
-        Command.Rpl_Welcome  (nick, conn#identity) ;
-        Command.Rpl_Yourhost (nick, config.server_name, "OCaml-IRC-0.1") ;
-        Command.Rpl_Created  (nick, "FIXME") ;
-        Command.Rpl_Myinfo   (nick, config.server_name, "OCaml-IRC-0.1", "", "")
+        Command.Rpl (Reply.Welcome  (nick, conn#identity)) ;
+        Command.Rpl (Reply.Yourhost (nick, config.server_name, "OCaml-IRC-0.1")) ;
+        Command.Rpl (Reply.Created  (nick, "FIXME")) ;
+        Command.Rpl (Reply.Myinfo   (nick, config.server_name, "OCaml-IRC-0.1", "", ""))
       ]
 
   method on_ping conn source _target =
@@ -100,15 +100,17 @@ class server config = object (self)
     let identity = conn#identity in
     try
       Database.nick database conn nick;
-      conn#send (Message.make (Message.Prefix.Identity identity) (Command.Nick nick))
+      if Identity.nick_opt identity <> None then
+        conn#send (Message.make (Message.Prefix.Identity identity) (Command.Nick nick))
+      else
+        Lwt.return ()
     with
       Database.NickAlreadyInUse ->
       if (Identity.nick_opt identity) = None then
         Database.nick database conn (Database.fresh_nick database);
-      conn#send (Message.make (Message.Prefix.Servername config.server_name) (Command.Err_NicknameInUse nick))
+      conn#send (Message.make (Message.Prefix.Servername config.server_name) (Command.Err (Error.NicknameInUse nick)))
 
   method on_join (conn: Connection.connection) (keyed_channels: Command.keyed_channel list) =
-    (*FIXME: tell others that .. just joined their channel*)
     Lwt_list.iter_s
       (fun (chan, _key) ->
         if Database.is_in_chan database (Identity.nick conn#identity) chan then
@@ -119,12 +121,32 @@ class server config = object (self)
             Database.join database (Identity.nick conn#identity) chan;
             Database.iter_s
               database
-              (fun conn ->
-                conn#send Message.(make (Prefix.Identity conn#identity) (Command.Join [(chan,None)])))
+              (fun conn' ->
+                conn'#send Message.(make (Prefix.Identity conn#identity) (Command.Join [(chan,None)])))
               chan
           ))
       keyed_channels
 
-  method on_privmsg _conn _target _message =
-    debug "Got PRIVMSG"
+  method on_privmsg conn target message =
+    let message = Message.(make (Prefix.Identity conn#identity) (Command.Privmsg (target, message))) in
+    match target with
+    | Command.Channel c ->
+       (*FIXME: check that we can do that*)
+       Database.iter_s
+         database
+         (fun conn' ->
+           if Connection.nequal conn conn' then
+             conn'#send message
+           else
+             Lwt.return ())
+         c
+    | Command.Nickname n ->
+       (
+         try
+           let conn' = Database.find database n in
+           conn'#send message
+         with
+           Not_found ->
+           conn#send Message.(make (Prefix.Servername config.server_name) (Command.Err Error.NoRecipient))
+       )
 end

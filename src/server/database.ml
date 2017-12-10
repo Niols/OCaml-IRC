@@ -123,6 +123,9 @@ let part db nick chan =
   with
     Not_found -> ()
 
+let find db nick =
+  Hashtbl.find db.nick_to_conn nick
+               
 let is_in_chan db nick chan =
   Hashtbl.find db.nick_to_chans nick
   |> List.mem chan

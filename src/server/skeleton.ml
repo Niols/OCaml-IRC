@@ -44,7 +44,7 @@ class virtual skeleton = object (self)
 
   method virtual on_user : connection -> Command.user -> Command.mode -> string -> unit Lwt.t
   method virtual on_nick : connection -> Nickname.t -> unit Lwt.t
-  method virtual on_privmsg : connection -> string -> string -> unit Lwt.t
+  method virtual on_privmsg : connection -> Command.target -> string -> unit Lwt.t
   method virtual on_ping : connection -> Command.server -> Command.server option -> unit Lwt.t
   method virtual on_pong : connection -> Command.server -> Command.server option -> unit Lwt.t
   method virtual on_join : connection -> Command.keyed_channel list -> unit Lwt.t

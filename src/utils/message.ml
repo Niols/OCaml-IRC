@@ -51,7 +51,7 @@ let pp_print ?(crlf=false) ppf m =
   (
     match m.prefix with
     | None -> fpf ppf "%a"
-    | Some (Prefix.Identity id) when not (Identity.is_valid id) -> fpf ppf "%a"
+    | Some (Prefix.Identity id) when not (Identity.is_valid id) -> raise (Invalid_argument "Message.pp_print")
     | Some p -> fpf ppf "%a %a" Prefix.pp_print m.prefix
   )
     Command.pp_print m.command;

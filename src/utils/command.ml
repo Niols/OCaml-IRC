@@ -27,6 +27,10 @@ type service = string
 type server = string
 type keyed_channel = Channel.t * Channel.key option
 
+type target =
+  | Channel of Channel.t
+  | Nickname of Nickname.t
+
 type t =
   (* These commands are taken from RFC 2812 *)
 
@@ -51,7 +55,7 @@ type t =
   | Kick of string * string * string option
 
   (* 3.3 Sending messages *)
-  | Privmsg of string * string
+  | Privmsg of target * string
   | Notice of string * string
 
   (* 3.4 Server queries and commands *)
@@ -82,23 +86,16 @@ type t =
   | Error of string
 
   (* 5.1 Command responses *)
-  | Rpl_Welcome of Nickname.t * Identity.t
-  | Rpl_Yourhost of Nickname.t * string * string
-  | Rpl_Created of Nickname.t * string
-  | Rpl_Myinfo of Nickname.t * string * string * string * string
+  | Rpl of Reply.t
 
   (* 5.2 Error replies *)
-  | Err_NicknameInUse of Nickname.t
-
+  | Err of Error.t
 
 let fpf = Format.fprintf
 
-let rec pp_params ppf = function
-  | [] -> ()
-  | [param] -> fpf ppf " :%s" param
-  | param :: params ->
-     (* assert param does not contain spaces *)
-     fpf ppf " %s%a" param pp_params params
+let pp_print_target ppf = function
+  | Channel c -> Channel.pp_print ppf c
+  | Nickname n -> Nickname.pp_print ppf n
 
 let pp_print ppf = function
 
@@ -137,7 +134,7 @@ let pp_print ppf = function
 
   (* 3.3 Sending messages *)
   | Privmsg (target, message) ->
-     fpf ppf "PRIVMSG %s :%s" target message
+     fpf ppf "PRIVMSG %a :%s" pp_print_target target message
 
   (* 3.7 Miscellaneous messages *)
   | Ping (server, None) ->
@@ -152,17 +149,12 @@ let pp_print ppf = function
      fpf ppf "ERROR :%s" message
 
   (* 5.1 Command responses *)
-  | Rpl_Welcome (nick, id) ->
-     fpf ppf "001 %a :Welcome to the Internet Relay Network %a" Nickname.pp_print nick Identity.pp_print id
-  | Rpl_Yourhost (nick, servername, ver) ->
-     fpf ppf "002 %a :Your host is %s, running version %s" Nickname.pp_print nick servername ver
-  | Rpl_Created (nick, date) ->
-     fpf ppf "003 %a :This server was created %s" Nickname.pp_print nick date
-  | Rpl_Myinfo (nick, servername, version, usermodes, channelmodes) ->
-     fpf ppf "004 %a %s %s %s %s" Nickname.pp_print nick servername version usermodes channelmodes
+  | Rpl reply ->
+     Reply.pp_print ppf reply
 
-  | Err_NicknameInUse nick ->
-     fpf ppf "433 %a :Nickname is already in use" Nickname.pp_print nick
+  (* 5.2 Error replies *)
+  | Err error ->
+     Error.pp_print ppf error
     
   | _ -> assert false
 
@@ -206,7 +198,13 @@ let from_strings command params =
      Ping (server1, Some server2)
 
   | "PRIVMSG", [target; message] ->
-     Privmsg (target, message)
+     (
+       try
+         Privmsg (Channel (Channel.of_string target), message)
+       with
+         Invalid_argument _ ->
+         Privmsg (Nickname (Nickname.of_string target), message)
+     )
 
   (* others *)
   | _ ->
