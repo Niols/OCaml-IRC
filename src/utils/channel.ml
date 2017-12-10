@@ -34,10 +34,7 @@ let is_valid s =
 
 let of_string s =
   if is_valid s then
-    (
-      Format.eprintf "\"%s\" is a valid channel name.@." s;
-      Misc.lowercase s
-    )
+    Misc.lowercase s
   else
     raise (Invalid_argument "Channel.of_string")
 

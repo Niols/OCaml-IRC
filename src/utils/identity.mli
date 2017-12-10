@@ -22,61 +22,25 @@
 
 open ExtPervasives
 
-type t =
-  { nick : Nickname.t option ;
-    user : string option ;
-    host : string option }
+type t
 
-let nick_opt id = id.nick
-let nick id = unwrap (nick_opt id)
+val nick : t -> Nickname.t
+val nick_opt : t -> Nickname.t option
 
-let user_opt id = id.user
-let user id = unwrap (user_opt id)
+val user : t -> string
+val user_opt : t -> string option
 
-let host_opt id = id.host
-let host id = unwrap (host_opt id)
-            
-let make_opt nick user host = { nick ; user ; host }
-let make nick user host =
-  { nick = Some nick ;
-    user = if user = "" then None else Some user ;
-    host = if host = "" then None else Some host }
+val host : t -> string
+val host_opt : t -> string option
 
-let set_nick id nick =
-  { id with nick = Some nick }
+val make_opt : Nickname.t option -> string option -> string option -> t
+val make : Nickname.t -> string -> string -> t
 
-let set_user id user =
-  { id with user = Some user }
+val set_nick : t -> Nickname.t -> t
+val set_user : t -> string -> t
 
-let is_valid id =
-  id.nick <> None && not (id.user <> None && id.host = None)
+val is_valid : t -> bool
+  
+val pp_print : Format.formatter -> t -> unit
 
-let pp_print ppf id =
-  Nickname.pp_print ppf (nick id) ;
-  if id.user <> None then fpf ppf "!%s" (user id);
-  if id.host <> None then fpf ppf "%@%s" (host id)
-
-let from_string str =
-  let buf = NegLexing.of_string str in
-  match NegLexing.next_sep '!' buf with
-  | exception Not_found ->
-     (
-       match NegLexing.next_sep '@' buf with
-       | exception Not_found ->
-          { nick = Some (Nickname.of_string (NegLexing.remaining buf)) ;
-            user = None ;
-            host = None }
-       | nick ->
-          { nick = Some (Nickname.of_string nick) ;
-            user = None ;
-            host = Some (NegLexing.remaining buf) }
-     )
-  | nick ->
-     (
-       match NegLexing.next_sep '@' buf with
-       | exception Not_found -> raise (Invalid_argument "Identity.from_string")
-       | user ->
-          { nick = Some (Nickname.of_string nick) ;
-            user = Some user ;
-            host = Some (NegLexing.remaining buf) }
-     )
+val from_string : string -> t

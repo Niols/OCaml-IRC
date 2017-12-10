@@ -48,9 +48,13 @@ let make_noprefix command =
   { prefix = None ; command }
 
 let pp_print ?(crlf=false) ppf m =
-  (if m.prefix = None
-   then fpf ppf "%a"
-   else fpf ppf "%a %a" Prefix.pp_print m.prefix) Command.pp_print m.command;
+  (
+    match m.prefix with
+    | None -> fpf ppf "%a"
+    | Some (Prefix.Identity id) when not (Identity.is_valid id) -> fpf ppf "%a"
+    | Some p -> fpf ppf "%a %a" Prefix.pp_print m.prefix
+  )
+    Command.pp_print m.command;
   if crlf then fpf ppf "\r\n"
 
 let to_string ?(crlf=false) m =

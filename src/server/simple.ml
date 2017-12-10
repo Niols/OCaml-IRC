@@ -56,26 +56,27 @@ class server config = object (self)
       (Message.make (Message.Prefix.Servername config.server_name))
       cmds
     |> conn#send_multiple
-    
+
   method on_open_connection _conn =
     Lwt.return ()
 
   method on_close_connection conn =
-    Database.remove database (conn#identity.Identity.nick);
+    Database.remove database (Identity.nick conn#identity);
     Lwt.return ()
-    
+
   method on_unexpected_message conn msg =
     warning_f "Unexpected message: %s" (Message.to_string msg)
     >> conn#send Message.(make (Prefix.Servername config.server_name) (Command.Error (Format.sprintf "unexpected message: %s" (Message.to_string msg))))
 
   method welcome (conn: connection) : unit Lwt.t =
+    let nick = Identity.nick conn#identity in
     self#send_commands
       conn
       [
-        Command.RplWelcome  (conn#identity.Identity.nick, "Welcome!") ;
-        Command.RplYourhost (conn#identity.Identity.nick, "I will be your host") ;
-        Command.RplCreated  (conn#identity.Identity.nick, "I wasn't created long ago") ;
-        Command.RplMyinfo   (conn#identity.Identity.nick, [])
+        Command.Rpl_Welcome  (nick, conn#identity) ;
+        Command.Rpl_Yourhost (nick, config.server_name, "OCaml-IRC-0.1") ;
+        Command.Rpl_Created  (nick, "FIXME") ;
+        Command.Rpl_Myinfo   (nick, config.server_name, "OCaml-IRC-0.1", "", "")
       ]
 
   method on_ping conn source _target =
@@ -89,31 +90,41 @@ class server config = object (self)
 
   method on_user conn user _mode _real =
     let identity = conn#identity in
-    conn#set_identity { identity with Identity.user };
+    conn#set_identity (Identity.set_user identity user);
     if Identity.is_valid conn#identity then
       self#welcome conn
     else
       Lwt.return ()
 
   method on_nick conn nick =
-    (*FIXME: check that it is available, update database*)
     let identity = conn#identity in
-    if Nickname.to_string identity.Identity.nick = "" then
-      Database.add database nick conn
-    else
-      Database.nick database identity.Identity.nick nick;
-    conn#set_identity { identity with Identity.nick };
-    conn#send (Message.make (Message.Prefix.Identity identity) (Command.Nick nick))
+    try
+      Database.nick database conn nick;
+      conn#send (Message.make (Message.Prefix.Identity identity) (Command.Nick nick))
+    with
+      Database.NickAlreadyInUse ->
+      if (Identity.nick_opt identity) = None then
+        Database.nick database conn (Database.fresh_nick database);
+      conn#send (Message.make (Message.Prefix.Servername config.server_name) (Command.Err_NicknameInUse nick))
 
   method on_join (conn: Connection.connection) (keyed_channels: Command.keyed_channel list) =
     (*FIXME: tell others that .. just joined their channel*)
     Lwt_list.iter_s
       (fun (chan, _key) ->
-        (*FIXME: handle keys*)
-        Database.join database conn#identity.Identity.nick chan;
-        conn#send Message.(make (Prefix.Identity conn#identity) (Command.Join [(chan,None)])))
+        if Database.is_in_chan database (Identity.nick conn#identity) chan then
+          Lwt.return ()
+        else
+          (
+            (*FIXME: handle keys*)
+            Database.join database (Identity.nick conn#identity) chan;
+            Database.iter_s
+              database
+              (fun conn ->
+                conn#send Message.(make (Prefix.Identity conn#identity) (Command.Join [(chan,None)])))
+              chan
+          ))
       keyed_channels
-    
+
   method on_privmsg _conn _target _message =
     debug "Got PRIVMSG"
 end

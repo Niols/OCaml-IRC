@@ -20,7 +20,7 @@
 (*                                                                            *)
 (******************************************************************************)
 
-type nick = string
+type user = string
 type mode = string
 type mask = string
 type service = string
@@ -33,7 +33,7 @@ type t =
   (* 3.1 Connection Registration *)
   | Pass of string
   | Nick of Nickname.t
-  | User of Nickname.t * mode * string
+  | User of user * mode * string
   | Oper of string * string
   (* | Mode of string * string list *) (*FIXME: chan vs. user modes*)
   | Service of string * string * string * string * string * string
@@ -73,7 +73,7 @@ type t =
   (* 3.6 Who query *)
   | Who of mask * bool
   | Whois of mask list * server option
-  | Whowas of nick * int option * string option
+  | Whowas of Nickname.t * int option * string option
 
   (* 3.7 Miscellaneous messages *)
   | Kill of string * string
@@ -82,11 +82,13 @@ type t =
   | Error of string
 
   (* 5.1 Command responses *)
-  | RplWelcome of nick * string
-  | RplYourhost of nick * string
-  | RplCreated of nick * string
-  | RplMyinfo of nick * string list
+  | Rpl_Welcome of Nickname.t * Identity.t
+  | Rpl_Yourhost of Nickname.t * string * string
+  | Rpl_Created of Nickname.t * string
+  | Rpl_Myinfo of Nickname.t * string * string * string * string
 
+  (* 5.2 Error replies *)
+  | Err_NicknameInUse of Nickname.t
 
 
 let fpf = Format.fprintf
@@ -127,7 +129,7 @@ let pp_print ppf = function
 
   (* NICK *)
   | Nick nick ->
-     fpf ppf "NICK %s" nick
+     fpf ppf "NICK %a" Nickname.pp_print nick
 
   (* USER *)
   | User (user, mode, realname) ->
@@ -150,15 +152,18 @@ let pp_print ppf = function
      fpf ppf "ERROR :%s" message
 
   (* 5.1 Command responses *)
-  | RplWelcome (nick, msg) ->
-     fpf ppf "001 %s :%s" nick msg
-  | RplYourhost (nick, msg) ->
-     fpf ppf "002 %s :%s" nick msg
-  | RplCreated (nick, msg) ->
-     fpf ppf "003 %s :%s" nick msg
-  | RplMyinfo (nick, msgs) ->
-     fpf ppf "004 %s%a" nick pp_params msgs
+  | Rpl_Welcome (nick, id) ->
+     fpf ppf "001 %a :Welcome to the Internet Relay Network %a" Nickname.pp_print nick Identity.pp_print id
+  | Rpl_Yourhost (nick, servername, ver) ->
+     fpf ppf "002 %a :Your host is %s, running version %s" Nickname.pp_print nick servername ver
+  | Rpl_Created (nick, date) ->
+     fpf ppf "003 %a :This server was created %s" Nickname.pp_print nick date
+  | Rpl_Myinfo (nick, servername, version, usermodes, channelmodes) ->
+     fpf ppf "004 %a %s %s %s %s" Nickname.pp_print nick servername version usermodes channelmodes
 
+  | Err_NicknameInUse nick ->
+     fpf ppf "433 %a :Nickname is already in use" Nickname.pp_print nick
+    
   | _ -> assert false
 
 
@@ -184,7 +189,12 @@ let from_strings command params =
 
   (* RFC 2812 ; 3.1.2 Nick message *)
   | "NICK" , [nick] ->
-     Nick nick
+     (
+       try
+         Nick (Nickname.of_string nick)
+       with
+         Invalid_argument _ -> raise (Malformed (command, params))
+     )
 
   (* RFC 2812 ; 3.1.3 User message *)
   | "USER" , [user; mode; _unused; realname] ->

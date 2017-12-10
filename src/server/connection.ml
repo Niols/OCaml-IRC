@@ -39,14 +39,14 @@ class connection fd sockaddr = object (self)
   val input = Lwt_io.of_fd ~mode:Lwt_io.input fd
   val output = Lwt_io.of_fd ~mode:Lwt_io.output fd
   val mutable identity =
-    Identity.make (Nickname.of_string "") "" (Unix.getnameinfo sockaddr []).Unix.ni_hostname
+    Identity.make_opt None None (Some (Unix.getnameinfo sockaddr []).Unix.ni_hostname)
 
   method identity = identity
   method set_identity (id: Identity.t) : unit =
     identity <- id
 
   method send message =
-    debug_f "[>>> %s] %s" identity.Identity.host (Message.to_string message)
+    debug_f "[>>> %s] %s" (Identity.host identity) (Message.to_string message)
     >> Lwt_io.write output (Message.to_string ~crlf:true message)
 
   method send_multiple messages : unit Lwt.t =
@@ -57,7 +57,7 @@ class connection fd sockaddr = object (self)
     >>= (fun line ->
       try%lwt
         let msg = Message.from_string line in
-        debug_f "[<<< %s] %s" identity.Identity.host (Message.to_string msg)
+        debug_f "[<<< %s] %s" (Identity.host identity) (Message.to_string msg)
         >> Lwt.return msg
       with
       | End_of_file ->
@@ -75,3 +75,9 @@ class connection fd sockaddr = object (self)
          >>= self#receive
     )
 end
+
+let equal c1 c2 =
+  c1 == c2
+
+let nequal c1 c2 =
+  not (equal c1 c2)

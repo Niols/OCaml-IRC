@@ -42,7 +42,7 @@ type event =
 class virtual skeleton = object (self)
   val mutable socket = None
 
-  method virtual on_user : connection -> Nickname.t -> Command.mode -> string -> unit Lwt.t
+  method virtual on_user : connection -> Command.user -> Command.mode -> string -> unit Lwt.t
   method virtual on_nick : connection -> Nickname.t -> unit Lwt.t
   method virtual on_privmsg : connection -> string -> string -> unit Lwt.t
   method virtual on_ping : connection -> Command.server -> Command.server option -> unit Lwt.t
@@ -97,7 +97,7 @@ class virtual skeleton = object (self)
     | ExtLwt.First conn ->
        (* in the case, we keep accepting stuff, and we start listening
           on the new connection. FIXME: stop listening if max_clients *)
-       info_f "New connection: %s" conn#identity.Identity.host
+       info_f "New connection: %s" (Identity.host conn#identity)
        >> self#loop (self#accept ()) ((self#listen conn) :: listeners)
 
     (* second case: some listener/s answered *)
@@ -112,7 +112,7 @@ class virtual skeleton = object (self)
               self#handle_message conn msg
               >> Lwt.return ((self#listen conn) :: listeners)
            | Exception End_of_file ->
-              info_f "Closed connection: %s" conn#identity.Identity.host
+              info_f "Closed connection: %s" (Identity.host conn#identity)
               >> self#on_close_connection conn
               >> Lwt.return listeners
            | Exception (Message.Malformed msg) ->
@@ -121,7 +121,7 @@ class virtual skeleton = object (self)
            | Exception e ->
               warning_f
                 ~exn:e
-                "[%s] Dropping connection because of unexpected exception" conn#identity.Identity.host
+                "[%s] Dropping connection because of unexpected exception" (Identity.host conn#identity)
               >> self#on_close_connection conn
               >> Lwt.return listeners)
          remaining_listeners
