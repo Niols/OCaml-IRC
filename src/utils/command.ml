@@ -46,6 +46,7 @@ type t =
 
   (* 3.2 Channel operations *)
   | Join of keyed_channel list
+  | Join0
   | Part of Channel.t list * string
   | Mode of string * string list
   | Topic of string * string option
@@ -155,57 +156,136 @@ let pp_print ppf = function
   (* 5.2 Error replies *)
   | Err error ->
      Error.pp_print ppf error
-    
+
   | _ -> assert false
 
 
-exception Malformed of string * string list
-
 let from_strings command params =
-  match command , params with
+  match command with
 
-  (* RFC 2812 ; 3.2.1 Join message *)
-  | "JOIN" , ["0"] ->
-     Join []
-  | "JOIN" , [channels] ->
+  (* 3.1 Connection Registration *)
+
+  | "NICK" ->
      (
-       try
-         let keyed_channels =
-           String.split_on_char ',' channels
-           |> List.map (fun channel -> (Channel.of_string channel, None))
-         in
-         Join keyed_channels
-       with
-         Invalid_argument _ -> raise (Malformed (command, params))
+       match params with
+       | [] ->
+          raise Error.(Exception NoNicknameGiven)
+       | nick :: _ ->
+          (
+            try
+              Nick (Nickname.of_string nick)
+            with
+              Invalid_argument _ ->
+              raise Error.(Exception (ErroneousNickname nick))
+          )
      )
 
-  (* RFC 2812 ; 3.1.2 Nick message *)
-  | "NICK" , [nick] ->
+  | "USER" ->
      (
-       try
-         Nick (Nickname.of_string nick)
-       with
-         Invalid_argument _ -> raise (Malformed (command, params))
+       match params with
+       | user :: mode :: _unused :: realname :: _ ->
+          User (user, mode, realname) (*FIXME: mode*)
+       | _ ->
+          raise Error.(Exception (NeedMoreParams "USER"))
      )
 
-  (* RFC 2812 ; 3.1.3 User message *)
-  | "USER" , [user; mode; _unused; realname] ->
-     User (user, mode, realname) (*FIXME: mode*)
+  (* 3.2 Channel operations *)
 
-  | "PING", [server] ->
-     Ping (server, None)
-  | "PING", [server1; server2] ->
-     Ping (server1, Some server2)
-
-  | "PRIVMSG", [target; message] ->
+  | "JOIN" ->
      (
-       try
-         Privmsg (Channel (Channel.of_string target), message)
-       with
-         Invalid_argument _ ->
-         Privmsg (Nickname (Nickname.of_string target), message)
+       match params with
+       | ["0"] ->
+          Join0
+       | [channels] ->
+          (
+            Join
+              (
+                let channels = String.split_on_char ',' channels in
+                List.map
+                  (fun channel ->
+                    try
+                      (Channel.of_string channel, None)
+                    with
+                      Invalid_argument _ ->
+                      raise Error.(Exception (NoSuchChannel channel)))
+                  channels
+              )
+          )
+       | channels :: keys :: _ ->
+          (
+            Join
+              (
+                let channels = String.split_on_char ',' channels in
+                let keys = String.split_on_char ',' keys in
+                let rec process_channels_and_keys channels keys =
+                  match channels, keys with
+                  | [], _ -> []
+                  | channel :: channels , [] ->
+                     (
+                       try
+                         (Channel.of_string channel, None)
+                         :: process_channels_and_keys channels []
+                       with
+                         Invalid_argument _ ->
+                         raise Error.(Exception (NoSuchChannel channel))
+                     )
+                  | channel :: channels , key :: keys ->
+                     (
+                       try
+                         (Channel.of_string channel, Some key)
+                         :: process_channels_and_keys channels keys
+                       with
+                         Invalid_argument _ ->
+                         raise Error.(Exception (NoSuchChannel channel))
+                     )
+                in
+                process_channels_and_keys channels keys
+              )
+          )
+       | _ ->
+          raise Error.(Exception (NeedMoreParams "JOIN"))
      )
 
-  (* others *)
-  | _ ->
-     raise (Malformed (command, params))
+  (* 3.3 Sending messages *)
+
+  | "PRIVMSG" ->
+     (
+       match params with
+       | [] ->
+          raise Error.(Exception NoRecipient)
+       | [_] ->
+          raise Error.(Exception NoTextToSend)
+       | target :: message :: _ ->
+          (
+            try
+              (* FIXME: target can be more than just channel or nickname *)
+              Privmsg (Channel (Channel.of_string target), message)
+            with
+              Invalid_argument _ ->
+              Privmsg (Nickname (Nickname.of_string target), message)
+          )
+     )
+
+  (* 3.4 Server queries and commands *)
+
+  (* 3.5 Squery *)
+
+  (* 3.6 Who query *)
+
+  (* 3.7 Miscellaneous messages *)
+
+  | "PING" ->
+     (
+       match params with
+       | [source] ->
+          Ping (source, None)
+       | bouncer :: source :: _ ->
+          Ping (source, Some bouncer)
+       | _ ->
+          raise Error.(Exception NoOrigin)
+     )
+
+  (* Unknown commands *)
+
+  | command ->
+     raise Error.(Exception (UnknownCommand command))

@@ -30,13 +30,6 @@ let pp_print ppf nick =
 let to_string nick =
   nick
 
-let is_valid nick =
-  try
-    ignore (to_string nick);
-    true
-  with
-    Invalid_argument _ -> false
-  
 let of_string nick =
   (* nickname   =  ( letter / special ) *8( letter / digit / special / "-" ) *)
   (* letter     =  %x41-5A / %x61-7A       ; A-Z / a-z *)

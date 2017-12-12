@@ -115,8 +115,10 @@ class virtual skeleton = object (self)
               info_f "Closed connection: %s" (Identity.host conn#identity)
               >> self#on_close_connection conn
               >> Lwt.return listeners
-           | Exception (Message.Malformed msg) ->
-              conn#send Message.(make_noprefix (Command.Error (Format.sprintf "malformed message: %s" msg)))
+           | Exception (Error.Exception err) ->
+              conn#send Message.(make
+                                   (Prefix.Servername "127.0.0.1") (*FIXME*)
+                                   (Command.Err err))
               >> Lwt.return ((self#listen conn) :: listeners)
            | Exception e ->
               warning_f

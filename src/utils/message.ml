@@ -64,8 +64,6 @@ let to_string ?(crlf=false) m =
   Format.pp_print_flush ppf ();
   Buffer.contents buf
 
-exception Malformed of string
-  
 let from_string str =
   let lb = NegLexing.of_string str in
 
@@ -120,8 +118,5 @@ let from_string str =
     List.rev (find_params [])
   in
 
-  try
-    { prefix = prefix ;
-      command = Command.from_strings command params }
-  with
-    Command.Malformed _ -> raise (Malformed str)
+  { prefix = prefix ;
+    command = Command.from_strings command params }

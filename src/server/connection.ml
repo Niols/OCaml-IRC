@@ -65,8 +65,6 @@ class connection fd sockaddr = object (self)
       | Lwt_io.Channel_closed descr ->
          warning_f "Lwt_io.Channel_closed(%s)" descr
          >> raise End_of_file
-      | Message.Malformed m ->
-         raise (Message.Malformed m)
       | Unix.Unix_error (error, fname, fparam) ->
          error_f "Unix_error(%s, %s, %s)" (Unix.error_message error) fname fparam
          >>= self#receive
