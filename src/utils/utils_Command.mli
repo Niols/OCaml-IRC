@@ -25,18 +25,18 @@ type mode = string
 type mask = string
 type service = string
 type server = string
-type keyed_channel = Channel.t * Channel.key option
+type keyed_channel = Utils_Channel.t * Utils_Channel.key option
 
 type target =
-  | Channel of Channel.t
-  | Nickname of Nickname.t
+  | Channel of Utils_Channel.t
+  | Nickname of Utils_Nickname.t
 
 type t =
   (* These commands are taken from RFC 2812 *)
 
   (* 3.1 Connection Registration *)
   | Pass of string
-  | Nick of Nickname.t
+  | Nick of Utils_Nickname.t
   | User of user * mode * string
   | Oper of string * string
   (* | Mode of string * string list *) (*FIXME: chan vs. user modes*)
@@ -47,7 +47,7 @@ type t =
   (* 3.2 Channel operations *)
   | Join of keyed_channel list
   | Join0
-  | Part of Channel.t list * string
+  | Part of Utils_Channel.t list * string
   | Mode of string * string list
   | Topic of string * string option
   | Names of string option * string option
@@ -78,7 +78,7 @@ type t =
   (* 3.6 Who query *)
   | Who of mask * bool
   | Whois of mask list * server option
-  | Whowas of Nickname.t * int option * string option
+  | Whowas of Utils_Nickname.t * int option * string option
 
   (* 3.7 Miscellaneous messages *)
   | Kill of string * string
@@ -87,10 +87,10 @@ type t =
   | Error of string
 
   (* 5.1 Command responses *)
-  | Rpl of Reply.t
+  | Rpl of Utils_Reply.t
 
   (* 5.2 Error replies *)
-  | Err of Error.t
+  | Err of Utils_Error.t
 
 val pp_print_target : Format.formatter -> target -> unit
 val pp_print : Format.formatter -> t -> unit

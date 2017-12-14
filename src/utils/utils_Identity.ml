@@ -23,7 +23,7 @@
 open ExtPervasives
 
 type t =
-  { nick : Nickname.t option ;
+  { nick : Utils_Nickname.t option ;
     user : string option ;
     host : string option }
 
@@ -52,7 +52,7 @@ let is_valid id =
   id.nick <> None && not (id.user <> None && id.host = None)
 
 let pp_print ppf id =
-  Nickname.pp_print ppf (nick id) ;
+  Utils_Nickname.pp_print ppf (nick id) ;
   if id.user <> None then fpf ppf "!%s" (user id);
   if id.host <> None then fpf ppf "%@%s" (host id)
 
@@ -63,11 +63,11 @@ let from_string str =
      (
        match NegLexing.next_sep '@' buf with
        | exception Not_found ->
-          { nick = Some (Nickname.of_string (NegLexing.remaining buf)) ;
+          { nick = Some (Utils_Nickname.of_string (NegLexing.remaining buf)) ;
             user = None ;
             host = None }
        | nick ->
-          { nick = Some (Nickname.of_string nick) ;
+          { nick = Some (Utils_Nickname.of_string nick) ;
             user = None ;
             host = Some (NegLexing.remaining buf) }
      )
@@ -76,7 +76,7 @@ let from_string str =
        match NegLexing.next_sep '@' buf with
        | exception Not_found -> raise (Invalid_argument "Identity.from_string")
        | user ->
-          { nick = Some (Nickname.of_string nick) ;
+          { nick = Some (Utils_Nickname.of_string nick) ;
             user = Some user ;
             host = Some (NegLexing.remaining buf) }
      )

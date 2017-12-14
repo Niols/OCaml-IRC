@@ -20,12 +20,12 @@
 (*                                                                            *)
 (******************************************************************************)
 
-(** A module that contains the possible error replies according the the RFC. *)
+(** This module contains the possible errors in the IRC RFC. *)
 
 type t =
   (** A type for error replies *)
 
-  | NoSuchNick of Nickname.t
+  | NoSuchNick of Utils_Nickname.t
   (** Used to indicate the nickname parameter supplied to a command is
      currently unused. *)
 
@@ -36,30 +36,28 @@ type t =
   | NoSuchChannel of string
   (** Used to indicate the given channel name is invalid. *)
 
-  | CannotSendToChan of Channel.t
+  | CannotSendToChan of Utils_Channel.t
   (** Sent to a user who is either (a) not on a channel which is mode
      +n or (b) not a chanop (or mode +v) on a channel which has mode
      +m set or where the user is banned and is trying to send a
      PRIVMSG message to that channel. *)
 
-  | TooManyChannels of Channel.t
+  | TooManyChannels of Utils_Channel.t
   (** Sent to a user when they have joined the maximum number of
      allowed channels and they try to join another channel. *)
 
-  | WasNoSuchNick of Nickname.t
+  | WasNoSuchNick of Utils_Nickname.t
   (** Returned by WHOWAS to indicate there is no history information
      for that nickname. *)
 
   | TooManyTargets of string * string * string
   (** Returned to a client which is attempting to send a
      PRIVMSG/NOTICE using the user@host destination format and for a
-     user@host which has several occurrences.
-
-     Returned to a client which trying to send a PRIVMSG/NOTICE to too
-     many recipients.
-
-     Returned to a client which is attempting to JOIN a safe channel
-     using the shortname when there are more than one such channel. *)
+     user@host which has several occurrences.  Also returned to a
+     client which trying to send a PRIVMSG/NOTICE to too many
+     recipients.  Also returned to a client which is attempting to
+     JOIN a safe channel using the shortname when there are more than
+     one such channel. *)
 
   | NoSuchService of string
   (** Returned to a client which is attempting to send a SQUERY to a
@@ -97,7 +95,7 @@ type t =
   (** Returned after receiving a NICK message which contains
      characters which do not fall in the defined set. *)
 
-  | NicknameInUse of Nickname.t
+  | NicknameInUse of Utils_Nickname.t
   (** Returned when a NICK message is processed that results in an
      attempt to change to a currently existing nickname. *)
 
@@ -113,15 +111,15 @@ type t =
      Returned by a server to a user trying to change nickname when the
      desired nickname is blocked by the nick delay mechanism. *)
 
-  | UserNotInChannel of Nickname.t * Channel.t
+  | UserNotInChannel of Utils_Nickname.t * Utils_Channel.t
   (** Returned by the server to indicate that the target user of the
      command is not on the given channel. *)
 
-  | NotOnChannel of Channel.t
+  | NotOnChannel of Utils_Channel.t
   (** Returned by the server whenever a client tries to perform a
      channel affecting command for which the client isn't a member. *)
 
-  | UserOnChannel of Nickname.t * Channel.t
+  | UserOnChannel of Utils_Nickname.t * Utils_Channel.t
   (** Returned when a client tries to invite a user to a channel they
      are already on. *)
 
@@ -170,21 +168,21 @@ type t =
   (** Sent by a server to a user to inform that access to the server
      will soon be denied. *)
 
-  | KeySet of Channel.t
-  | ChannelIsFull of Channel.t
-  | UnknownMode of char * Channel.t
-  | InviteOnlyChan of Channel.t
-  | BannedFromChan of Channel.t
-  | BadChannelKey of Channel.t
-  | BadChanMask of Channel.t
-  | NoChanModes of Channel.t
-  | BanListFull of Channel.t * char
+  | KeySet of Utils_Channel.t
+  | ChannelIsFull of Utils_Channel.t
+  | UnknownMode of char * Utils_Channel.t
+  | InviteOnlyChan of Utils_Channel.t
+  | BannedFromChan of Utils_Channel.t
+  | BadChannelKey of Utils_Channel.t
+  | BadChanMask of Utils_Channel.t
+  | NoChanModes of Utils_Channel.t
+  | BanListFull of Utils_Channel.t * char
 
   | NoPrivileges
   (** Any command requiring operator privileges to operate MUST return
      this error to indicate the attempt was unsuccessful. *)
 
-  | ChanopPrivNeeded of Channel.t
+  | ChanopPrivNeeded of Utils_Channel.t
   (** Any command requiring 'chanop' privileges (such as MODE
      messages) MUST return this error if the client making the attempt
      is not a chanop on the specified channel. *)

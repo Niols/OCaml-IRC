@@ -21,12 +21,12 @@
 (******************************************************************************)
 
 type t =
-  | NoSuchNick of Nickname.t
+  | NoSuchNick of Utils_Nickname.t
   | NoSuchServer of string
   | NoSuchChannel of string
-  | CannotSendToChan of Channel.t
-  | TooManyChannels of Channel.t
-  | WasNoSuchNick of Nickname.t
+  | CannotSendToChan of Utils_Channel.t
+  | TooManyChannels of Utils_Channel.t
+  | WasNoSuchNick of Utils_Nickname.t
   | TooManyTargets of string * string * string
   | NoSuchService of string
   | NoOrigin
@@ -41,12 +41,12 @@ type t =
   | FileError of string * string
   | NoNicknameGiven
   | ErroneousNickname of string
-  | NicknameInUse of Nickname.t
+  | NicknameInUse of Utils_Nickname.t
   | NickCollision of string * string * string
   | UnavailResource of string
-  | UserNotInChannel of Nickname.t * Channel.t
-  | NotOnChannel of Channel.t
-  | UserOnChannel of Nickname.t * Channel.t
+  | UserNotInChannel of Utils_Nickname.t * Utils_Channel.t
+  | NotOnChannel of Utils_Channel.t
+  | UserOnChannel of Utils_Nickname.t * Utils_Channel.t
   | NoLogin of string
   | SummonDisabled
   | UsersDisabled
@@ -57,17 +57,17 @@ type t =
   | PasswdMismatch
   | YoureBannedCreep
   | YouWillBeBanned
-  | KeySet of Channel.t
-  | ChannelIsFull of Channel.t
-  | UnknownMode of char * Channel.t
-  | InviteOnlyChan of Channel.t
-  | BannedFromChan of Channel.t
-  | BadChannelKey of Channel.t
-  | BadChanMask of Channel.t
-  | NoChanModes of Channel.t
-  | BanListFull of Channel.t * char
+  | KeySet of Utils_Channel.t
+  | ChannelIsFull of Utils_Channel.t
+  | UnknownMode of char * Utils_Channel.t
+  | InviteOnlyChan of Utils_Channel.t
+  | BannedFromChan of Utils_Channel.t
+  | BadChannelKey of Utils_Channel.t
+  | BadChanMask of Utils_Channel.t
+  | NoChanModes of Utils_Channel.t
+  | BanListFull of Utils_Channel.t * char
   | NoPrivileges
-  | ChanopPrivNeeded of Channel.t
+  | ChanopPrivNeeded of Utils_Channel.t
   | CantKillServer
   | Restricted
   | UniqOpPrivNeeded
@@ -81,17 +81,17 @@ let fpf = Format.fprintf
 
 let pp_print ppf = function
   | NoSuchNick nick ->
-     fpf ppf "401 %a :No such nick/channel" Nickname.pp_print nick
+     fpf ppf "401 %a :No such nick/channel" Utils_Nickname.pp_print nick
   | NoSuchServer server ->
      fpf ppf "402 %s :No such server" server
   | NoSuchChannel channel ->
      fpf ppf "403 %s :No such channel" channel
   | CannotSendToChan channel ->
-     fpf ppf "404 %a :Cannot send to channel" Channel.pp_print channel
+     fpf ppf "404 %a :Cannot send to channel" Utils_Channel.pp_print channel
   | TooManyChannels channel ->
-     fpf ppf "405 %a :You have joined too many channels" Channel.pp_print channel
+     fpf ppf "405 %a :You have joined too many channels" Utils_Channel.pp_print channel
   | WasNoSuchNick nick ->
-     fpf ppf "406 %a :There was no such nickname" Nickname.pp_print nick
+     fpf ppf "406 %a :There was no such nickname" Utils_Nickname.pp_print nick
   | TooManyTargets (target, code, message) ->
      fpf ppf "407 %s :%s recipients. %s" target code message
   | NoSuchService service ->
@@ -121,17 +121,17 @@ let pp_print ppf = function
   | ErroneousNickname nick ->
      fpf ppf "432 %s :Erroneous nickname" nick
   | NicknameInUse nick ->
-     fpf ppf "433 %a :Nickname is already in use" Nickname.pp_print nick
+     fpf ppf "433 %a :Nickname is already in use" Utils_Nickname.pp_print nick
   | NickCollision (nick, user, host) ->
      fpf ppf "436 %s :Nickname collision KILL from %s@%s" nick user host
   | UnavailResource nick_chan ->
      fpf ppf "437 %s :Nick/channel is temporarily unavailable" nick_chan
   | UserNotInChannel (nick, chan) ->
-     fpf ppf "441 %a %a :They aren't on that channel" Nickname.pp_print nick Channel.pp_print chan
+     fpf ppf "441 %a %a :They aren't on that channel" Utils_Nickname.pp_print nick Utils_Channel.pp_print chan
   | NotOnChannel chan ->
-     fpf ppf "442 %a :You're not on that channel" Channel.pp_print chan
+     fpf ppf "442 %a :You're not on that channel" Utils_Channel.pp_print chan
   | UserOnChannel (nick, chan) ->
-     fpf ppf "443 %a %a :is already on channel" Nickname.pp_print nick Channel.pp_print chan
+     fpf ppf "443 %a %a :is already on channel" Utils_Nickname.pp_print nick Utils_Channel.pp_print chan
   | NoLogin user ->
      fpf ppf "444 %s :User not logged in" user
   | SummonDisabled ->
@@ -153,27 +153,27 @@ let pp_print ppf = function
   | YouWillBeBanned ->
      fpf ppf "466 :You will be banned from this server"
   | KeySet channel ->
-     fpf ppf "467 %a :Channel key already set" Channel.pp_print channel
+     fpf ppf "467 %a :Channel key already set" Utils_Channel.pp_print channel
   | ChannelIsFull channel ->
-     fpf ppf "471 %a :Cannot join channel (+l)" Channel.pp_print channel
+     fpf ppf "471 %a :Cannot join channel (+l)" Utils_Channel.pp_print channel
   | UnknownMode (mode, channel) ->
-     fpf ppf "472 %c :is unknown mode char to me for %a" mode Channel.pp_print channel
+     fpf ppf "472 %c :is unknown mode char to me for %a" mode Utils_Channel.pp_print channel
   | InviteOnlyChan channel ->
-     fpf ppf "473 %a :Cannot join channel (+i)" Channel.pp_print channel
+     fpf ppf "473 %a :Cannot join channel (+i)" Utils_Channel.pp_print channel
   | BannedFromChan channel ->
-     fpf ppf "474 %a :Cannot join channel (+b)" Channel.pp_print channel
+     fpf ppf "474 %a :Cannot join channel (+b)" Utils_Channel.pp_print channel
   | BadChannelKey channel ->
-     fpf ppf "475 %a :Cannot join channel (+k)" Channel.pp_print channel
+     fpf ppf "475 %a :Cannot join channel (+k)" Utils_Channel.pp_print channel
   | BadChanMask channel ->
-     fpf ppf "476 %a :Bad Channel Mask" Channel.pp_print channel
+     fpf ppf "476 %a :Bad Channel Mask" Utils_Channel.pp_print channel
   | NoChanModes channel ->
-     fpf ppf "477 %a :Channel doesn't support modes" Channel.pp_print channel
+     fpf ppf "477 %a :Channel doesn't support modes" Utils_Channel.pp_print channel
   | BanListFull (channel, char) ->
-     fpf ppf "478 %a %c :Channel list is full" Channel.pp_print channel char
+     fpf ppf "478 %a %c :Channel list is full" Utils_Channel.pp_print channel char
   | NoPrivileges ->
      fpf ppf "481 :Permission Denied- You're not an IRC operator"
   | ChanopPrivNeeded channel ->
-     fpf ppf "482 %a :You're not channel operator" Channel.pp_print channel
+     fpf ppf "482 %a :You're not channel operator" Utils_Channel.pp_print channel
   | CantKillServer ->
      fpf ppf "483 :You can't kill a server!"
   | Restricted ->

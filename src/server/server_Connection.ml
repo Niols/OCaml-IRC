@@ -21,7 +21,6 @@
 (******************************************************************************)
 
 open ExtPervasives
-open Utils
 
 let (>>=) = Lwt.bind
 
@@ -34,45 +33,46 @@ let warning_f = Lwt_log.warning_f
 let error = Lwt_log.error
 let error_f = Lwt_log.error_f
 
-class connection fd sockaddr = object (self)
+type t =
+  { input : Lwt_io.input_channel ;
+    output : Lwt_io.output_channel ;
+    mutable identity : Utils_Identity.t }
 
-  val input = Lwt_io.of_fd ~mode:Lwt_io.input fd
-  val output = Lwt_io.of_fd ~mode:Lwt_io.output fd
-  val mutable identity =
-    Identity.make_opt None None (Some (Unix.getnameinfo sockaddr []).Unix.ni_hostname)
+let make fd sockaddr =
+  { input = Lwt_io.of_fd ~mode:Lwt_io.input fd ;
+    output = Lwt_io.of_fd ~mode:Lwt_io.output fd ;
+    identity = Utils_Identity.make_opt None None (Some (Unix.getnameinfo sockaddr []).Unix.ni_hostname) }
 
-  method identity = identity
-  method set_identity (id: Identity.t) : unit =
-    identity <- id
+let identity c = c.identity
+let set_identity c id = c.identity <- id
 
-  method send message =
-    debug_f "[>>> %s] %s" (Identity.host identity) (Message.to_string message)
-    >> Lwt_io.write output (Message.to_string ~crlf:true message)
+let send conn message =
+  debug_f "[>>> %s] %s" (Utils_Identity.host conn.identity) (Utils_Message.to_string message)
+  >> Lwt_io.write conn.output (Utils_Message.to_string ~crlf:true message)
 
-  method send_multiple messages : unit Lwt.t =
-    Lwt_list.iter_s (self#send) messages
+let send_multiple conn messages =
+  Lwt_list.iter_s (send conn) messages
 
-  method receive () =
-    Lwt_io.read_line input
-    >>= (fun line ->
-      try%lwt
-        let msg = Message.from_string line in
-        debug_f "[<<< %s] %s" (Identity.host identity) (Message.to_string msg)
-        >> Lwt.return msg
-      with
-      | End_of_file ->
-         raise End_of_file
-      | Lwt_io.Channel_closed descr ->
-         warning_f "Lwt_io.Channel_closed(%s)" descr
-         >> raise End_of_file
-      | Unix.Unix_error (error, fname, fparam) ->
-         error_f "Unix_error(%s, %s, %s)" (Unix.error_message error) fname fparam
-         >>= self#receive
-      | e ->
-         error ~exn:e "unexpected error (ignoring)"
-         >>= self#receive
-    )
-end
+let rec receive conn =
+  Lwt_io.read_line conn.input
+  >>= (fun line ->
+    try%lwt
+       let msg = Utils_Message.from_string line in
+           debug_f "[<<< %s] %s" (Utils_Identity.host conn.identity) (Utils_Message.to_string msg)
+           >> Lwt.return msg
+           with
+           | End_of_file ->
+              raise End_of_file
+           | Lwt_io.Channel_closed descr ->
+              warning_f "Lwt_io.Channel_closed(%s)" descr
+              >> raise End_of_file
+           | Unix.Unix_error (error, fname, fparam) ->
+              error_f "Unix_error(%s, %s, %s)" (Unix.error_message error) fname fparam
+              >> receive conn
+           | e ->
+              error ~exn:e "unexpected error (ignoring)"
+              >> receive conn
+  )
 
 let equal c1 c2 =
   c1 == c2

@@ -25,18 +25,18 @@ type mode = string
 type mask = string
 type service = string
 type server = string
-type keyed_channel = Channel.t * Channel.key option
+type keyed_channel = Utils_Channel.t * Utils_Channel.key option
 
 type target =
-  | Channel of Channel.t
-  | Nickname of Nickname.t
+  | Channel of Utils_Channel.t
+  | Nickname of Utils_Nickname.t
 
 type t =
   (* These commands are taken from RFC 2812 *)
 
   (* 3.1 Connection Registration *)
   | Pass of string
-  | Nick of Nickname.t
+  | Nick of Utils_Nickname.t
   | User of user * mode * string
   | Oper of string * string
   (* | Mode of string * string list *) (*FIXME: chan vs. user modes*)
@@ -47,7 +47,7 @@ type t =
   (* 3.2 Channel operations *)
   | Join of keyed_channel list
   | Join0
-  | Part of Channel.t list * string
+  | Part of Utils_Channel.t list * string
   | Mode of string * string list
   | Topic of string * string option
   | Names of string option * string option
@@ -78,7 +78,7 @@ type t =
   (* 3.6 Who query *)
   | Who of mask * bool
   | Whois of mask list * server option
-  | Whowas of Nickname.t * int option * string option
+  | Whowas of Utils_Nickname.t * int option * string option
 
   (* 3.7 Miscellaneous messages *)
   | Kill of string * string
@@ -87,16 +87,16 @@ type t =
   | Error of string
 
   (* 5.1 Command responses *)
-  | Rpl of Reply.t
+  | Rpl of Utils_Reply.t
 
   (* 5.2 Error replies *)
-  | Err of Error.t
+  | Err of Utils_Error.t
 
 let fpf = Format.fprintf
 
 let pp_print_target ppf = function
-  | Channel c -> Channel.pp_print ppf c
-  | Nickname n -> Nickname.pp_print ppf n
+  | Channel c -> Utils_Channel.pp_print ppf c
+  | Nickname n -> Utils_Nickname.pp_print ppf n
 
 let pp_print ppf = function
 
@@ -121,13 +121,13 @@ let pp_print ppf = function
        List.filter (fun o -> o <> None) keys
        |> List.map (function Some k -> k | None -> assert false)
      in
-     fpf ppf " %s" (String.concat "," (List.map Channel.to_string channels));
+     fpf ppf " %s" (String.concat "," (List.map Utils_Channel.to_string channels));
      if keys <> [] then
        fpf ppf " %s" (String.concat "," keys)
 
   (* NICK *)
   | Nick nick ->
-     fpf ppf "NICK %a" Nickname.pp_print nick
+     fpf ppf "NICK %a" Utils_Nickname.pp_print nick
 
   (* USER *)
   | User (user, mode, realname) ->
@@ -151,11 +151,11 @@ let pp_print ppf = function
 
   (* 5.1 Command responses *)
   | Rpl reply ->
-     Reply.pp_print ppf reply
+     Utils_Reply.pp_print ppf reply
 
   (* 5.2 Error replies *)
   | Err error ->
-     Error.pp_print ppf error
+     Utils_Error.pp_print ppf error
 
   | _ -> assert false
 
@@ -169,14 +169,14 @@ let from_strings command params =
      (
        match params with
        | [] ->
-          raise Error.(Exception NoNicknameGiven)
+          raise Utils_Error.(Exception NoNicknameGiven)
        | nick :: _ ->
           (
             try
-              Nick (Nickname.of_string nick)
+              Nick (Utils_Nickname.of_string nick)
             with
               Invalid_argument _ ->
-              raise Error.(Exception (ErroneousNickname nick))
+              raise Utils_Error.(Exception (ErroneousNickname nick))
           )
      )
 
@@ -186,7 +186,7 @@ let from_strings command params =
        | user :: mode :: _unused :: realname :: _ ->
           User (user, mode, realname) (*FIXME: mode*)
        | _ ->
-          raise Error.(Exception (NeedMoreParams "USER"))
+          raise Utils_Error.(Exception (NeedMoreParams "USER"))
      )
 
   (* 3.2 Channel operations *)
@@ -204,10 +204,10 @@ let from_strings command params =
                 List.map
                   (fun channel ->
                     try
-                      (Channel.of_string channel, None)
+                      (Utils_Channel.of_string channel, None)
                     with
                       Invalid_argument _ ->
-                      raise Error.(Exception (NoSuchChannel channel)))
+                      raise Utils_Error.(Exception (NoSuchChannel channel)))
                   channels
               )
           )
@@ -223,27 +223,27 @@ let from_strings command params =
                   | channel :: channels , [] ->
                      (
                        try
-                         (Channel.of_string channel, None)
+                         (Utils_Channel.of_string channel, None)
                          :: process_channels_and_keys channels []
                        with
                          Invalid_argument _ ->
-                         raise Error.(Exception (NoSuchChannel channel))
+                         raise Utils_Error.(Exception (NoSuchChannel channel))
                      )
                   | channel :: channels , key :: keys ->
                      (
                        try
-                         (Channel.of_string channel, Some key)
+                         (Utils_Channel.of_string channel, Some key)
                          :: process_channels_and_keys channels keys
                        with
                          Invalid_argument _ ->
-                         raise Error.(Exception (NoSuchChannel channel))
+                         raise Utils_Error.(Exception (NoSuchChannel channel))
                      )
                 in
                 process_channels_and_keys channels keys
               )
           )
        | _ ->
-          raise Error.(Exception (NeedMoreParams "JOIN"))
+          raise Utils_Error.(Exception (NeedMoreParams "JOIN"))
      )
 
   (* 3.3 Sending messages *)
@@ -252,17 +252,17 @@ let from_strings command params =
      (
        match params with
        | [] ->
-          raise Error.(Exception NoRecipient)
+          raise Utils_Error.(Exception NoRecipient)
        | [_] ->
-          raise Error.(Exception NoTextToSend)
+          raise Utils_Error.(Exception NoTextToSend)
        | target :: message :: _ ->
           (
             try
               (* FIXME: target can be more than just channel or nickname *)
-              Privmsg (Channel (Channel.of_string target), message)
+              Privmsg (Channel (Utils_Channel.of_string target), message)
             with
               Invalid_argument _ ->
-              Privmsg (Nickname (Nickname.of_string target), message)
+              Privmsg (Nickname (Utils_Nickname.of_string target), message)
           )
      )
 
@@ -282,10 +282,10 @@ let from_strings command params =
        | bouncer :: source :: _ ->
           Ping (source, Some bouncer)
        | _ ->
-          raise Error.(Exception NoOrigin)
+          raise Utils_Error.(Exception NoOrigin)
      )
 
   (* Unknown commands *)
 
   | command ->
-     raise Error.(Exception (UnknownCommand command))
+     raise Utils_Error.(Exception (UnknownCommand command))

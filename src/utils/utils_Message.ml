@@ -22,25 +22,9 @@
 
 open ExtPervasives
 
-module Prefix =
-  struct
-    type prefix =
-      | Servername of string
-      | Identity of Identity.t
-
-    type t = prefix option
-
-    let pp_print ppf = function
-      | None -> ()
-      | Some (Servername s) ->
-         fpf ppf ":%s" s
-      | Some (Identity id) ->
-         fpf ppf ":%a" Identity.pp_print id
-  end
-
 type t =
-  { prefix : Prefix.t ;
-    command : Command.t }
+  { prefix : Utils_Prefix.t ;
+    command : Utils_Command.t }
 
 let make prefix command =
   { prefix = Some prefix ; command }
@@ -51,10 +35,10 @@ let pp_print ?(crlf=false) ppf m =
   (
     match m.prefix with
     | None -> fpf ppf "%a"
-    | Some (Prefix.Identity id) when not (Identity.is_valid id) -> raise (Invalid_argument "Message.pp_print")
-    | Some p -> fpf ppf "%a %a" Prefix.pp_print m.prefix
+    | Some (Utils_Prefix.Identity id) when not (Utils_Identity.is_valid id) -> raise (Invalid_argument "Message.pp_print")
+    | Some p -> fpf ppf "%a %a" Utils_Prefix.pp_print m.prefix
   )
-    Command.pp_print m.command;
+    Utils_Command.pp_print m.command;
   if crlf then fpf ppf "\r\n"
 
 let to_string ?(crlf=false) m =
@@ -73,7 +57,7 @@ let from_string str =
     | ':' ->
        NegLexing.next_char lb;
        (
-         try Some (Prefix.Identity (Identity.from_string (NegLexing.next_sep ' ' lb)))
+         try Some (Utils_Prefix.Identity (Utils_Identity.from_string (NegLexing.next_sep ' ' lb)))
          with Not_found -> raise (Invalid_argument "Message.from_string: found a prefix but no command")
        )
     | _ ->
@@ -119,4 +103,4 @@ let from_string str =
   in
 
   { prefix = prefix ;
-    command = Command.from_strings command params }
+    command = Utils_Command.from_strings command params }

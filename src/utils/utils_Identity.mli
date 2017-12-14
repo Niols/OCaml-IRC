@@ -20,26 +20,27 @@
 (*                                                                            *)
 (******************************************************************************)
 
-type t = string
-type key = string
+open ExtPervasives
 
-let is_valid s =
-  (* FIXME: more complicated than that *)
-  let l = String.length s in
-  0 < l && l <= 50
-  && (s.[0] = '&' || s.[0] = '#' || s.[0] = '+' || s.[0] = '!')
-  && (String.index_opt s ' ' = None)
-  && (String.index_opt s ',' = None)
-  && (String.index_opt s (Char.chr 7) = None)
+type t
 
-let of_string s =
-  if is_valid s then
-    Misc.lowercase s
-  else
-    raise (Invalid_argument "Channel.of_string")
+val nick : t -> Utils_Nickname.t
+val nick_opt : t -> Utils_Nickname.t option
 
-let to_string s =
-  s
+val user : t -> string
+val user_opt : t -> string option
 
-let pp_print =
-  Format.pp_print_string
+val host : t -> string
+val host_opt : t -> string option
+
+val make_opt : Utils_Nickname.t option -> string option -> string option -> t
+val make : Utils_Nickname.t -> string -> string -> t
+
+val set_nick : t -> Utils_Nickname.t -> t
+val set_user : t -> string -> t
+
+val is_valid : t -> bool
+  
+val pp_print : Format.formatter -> t -> unit
+
+val from_string : string -> t

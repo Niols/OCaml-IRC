@@ -20,15 +20,14 @@
 (*                                                                            *)
 (******************************************************************************)
 
-open Utils
 open Lwt_log
 
 exception NickAlreadyInUse
 
 type t =
-  { nick_to_conn  : (Nickname.t, Connection.connection) Hashtbl.t ;
-    nick_to_chans : (Nickname.t, Channel.t list) Hashtbl.t ;
-    chan_to_conns : (Channel.t, Connection.connection list) Hashtbl.t }
+  { nick_to_conn  : (Utils_Nickname.t, Server_Connection.t) Hashtbl.t ;
+    nick_to_chans : (Utils_Nickname.t, Utils_Channel.t list) Hashtbl.t ;
+    chan_to_conns : (Utils_Channel.t, Server_Connection.t list) Hashtbl.t }
 
 let fpf = Format.fprintf
 
@@ -36,24 +35,24 @@ let pp_debug ppf db =
   fpf ppf "Nicknames:";
   Hashtbl.iter
     (fun nick _ ->
-      fpf ppf " %a" Nickname.pp_print nick)
+      fpf ppf " %a" Utils_Nickname.pp_print nick)
     db.nick_to_conn;
   fpf ppf "\n\nChannels per nick:\n";
   Hashtbl.iter
     (fun nick chans ->
-      fpf ppf "- %a:" Nickname.pp_print nick;
+      fpf ppf "- %a:" Utils_Nickname.pp_print nick;
       List.iter
         (fun chan ->
-          fpf ppf " %s" (Channel.to_string chan))
+          fpf ppf " %s" (Utils_Channel.to_string chan))
         chans)
     db.nick_to_chans;
   fpf ppf "\nNicknames per channel:\n";
   Hashtbl.iter
     (fun chan conns ->
-      fpf ppf "- %s:" (Channel.to_string chan);
+      fpf ppf "- %s:" (Utils_Channel.to_string chan);
       List.iter
         (fun conn ->
-          fpf ppf " %a" Nickname.pp_print (Identity.nick conn#identity))
+          fpf ppf " %a" Utils_Nickname.pp_print (Utils_Identity.nick (Server_Connection.identity conn)))
         conns)
     db.chan_to_conns
 
@@ -68,7 +67,7 @@ let remove db nick =
   Hashtbl.remove db.nick_to_conn nick;
   Hashtbl.remove db.nick_to_chans nick;
   Hashtbl.filter_map_inplace
-    (fun _ conns -> Some (List.filter (Connection.nequal conn) conns))
+    (fun _ conns -> Some (List.filter (Server_Connection.nequal conn) conns))
     db.chan_to_conns
 
 let nick db conn nick' =
@@ -76,10 +75,10 @@ let nick db conn nick' =
     raise NickAlreadyInUse
   else
     (
-      let identity = conn#identity in
-      conn#set_identity (Identity.set_nick identity nick');
+      let identity = Server_Connection.identity conn in
+      Server_Connection.set_identity conn (Utils_Identity.set_nick identity nick');
       try
-        let nick = Identity.nick identity in
+        let nick = Utils_Identity.nick identity in
         Hashtbl.remove db.nick_to_conn nick;
         Hashtbl.add db.nick_to_conn nick' conn;
         let chans = Hashtbl.find db.nick_to_chans nick in
@@ -92,7 +91,7 @@ let nick db conn nick' =
     )
 
 let rec fresh_nick db =
-  let nick = Nickname.of_string ("nick_" ^ string_of_int (Random.int 99999)) in
+  let nick = Utils_Nickname.of_string ("nick_" ^ string_of_int (Random.int 99999)) in
   if Hashtbl.mem db.nick_to_conn nick then
     fresh_nick db
   else
@@ -115,7 +114,7 @@ let part db nick chan =
   Hashtbl.replace db.nick_to_chans nick (List.filter ((<>) chan) chans);
   try
     let conns = Hashtbl.find db.chan_to_conns chan in
-    let conns = List.filter (Connection.nequal conn) conns in
+    let conns = List.filter (Server_Connection.nequal conn) conns in
     if conns = [] then
       Hashtbl.remove db.chan_to_conns chan
     else

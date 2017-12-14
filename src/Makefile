@@ -10,5 +10,8 @@ endif
 all:
 	$(OCB) irc.cma irc.cmxa irc.cmxs
 
+doc:
+	$(OCB) irc.docdir/index.html
+
 clean:
 	$(OCB) -clean

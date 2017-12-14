@@ -21,8 +21,6 @@
 (******************************************************************************)
 
 open ExtPervasives
-open Utils
-open Connection
 
 let (>>=) = Lwt.bind
 
@@ -36,27 +34,26 @@ let error = Lwt_log.error
 let error_f = Lwt_log.error_f
 
 type event =
-  | Message of Message.t
+  | Message of Utils_Message.t
   | Exception of exn
 
 class virtual skeleton = object (self)
   val mutable socket = None
 
-  method virtual on_user : connection -> Command.user -> Command.mode -> string -> unit Lwt.t
-  method virtual on_nick : connection -> Nickname.t -> unit Lwt.t
-  method virtual on_privmsg : connection -> Command.target -> string -> unit Lwt.t
-  method virtual on_ping : connection -> Command.server -> Command.server option -> unit Lwt.t
-  method virtual on_pong : connection -> Command.server -> Command.server option -> unit Lwt.t
-  method virtual on_join : connection -> Command.keyed_channel list -> unit Lwt.t
+  method virtual on_user : Server_Connection.t -> Utils_Command.user -> Utils_Command.mode -> string -> unit Lwt.t
+  method virtual on_nick : Server_Connection.t -> Utils_Nickname.t -> unit Lwt.t
+  method virtual on_privmsg : Server_Connection.t -> Utils_Command.target -> string -> unit Lwt.t
+  method virtual on_ping : Server_Connection.t -> Utils_Command.server -> Utils_Command.server option -> unit Lwt.t
+  method virtual on_pong : Server_Connection.t -> Utils_Command.server -> Utils_Command.server option -> unit Lwt.t
+  method virtual on_join : Server_Connection.t -> Utils_Command.keyed_channel list -> unit Lwt.t
                
-  method virtual on_unexpected_message : connection -> Message.t -> unit Lwt.t
-  method virtual on_open_connection : connection -> unit Lwt.t
-  method virtual on_close_connection : connection -> unit Lwt.t
+  method virtual on_unexpected_message : Server_Connection.t -> Utils_Message.t -> unit Lwt.t
+  method virtual on_open_connection : Server_Connection.t -> unit Lwt.t
+  method virtual on_close_connection : Server_Connection.t -> unit Lwt.t
                
-  method handle_message (conn: connection) (msg: Message.t) : unit Lwt.t =
-    let open Utils in
-    let open Command in
-    match msg.Message.command with
+  method handle_message (conn: Server_Connection.t) (msg: Utils_Message.t) : unit Lwt.t =
+    let open Utils_Command in
+    match msg.Utils_Message.command with
     | Nick nick ->
        self#on_nick conn nick
     | User (user, mode, real) ->
@@ -75,13 +72,13 @@ class virtual skeleton = object (self)
   method accept () =
     Lwt_unix.accept (unwrap socket)
     >>= (fun (fd, sockaddr) ->
-      let conn = new connection fd sockaddr in
+      let conn = Server_Connection.make fd sockaddr in
       self#on_open_connection conn
       >> Lwt.return conn)
 
-  method listen (conn: connection) =
+  method listen (conn: Server_Connection.t) =
     try%lwt
-      conn#receive ()
+      Server_Connection.receive conn
       >>= (fun msg ->
         Lwt.return (conn, Message msg))
     with
@@ -97,13 +94,13 @@ class virtual skeleton = object (self)
     | ExtLwt.First conn ->
        (* in the case, we keep accepting stuff, and we start listening
           on the new connection. FIXME: stop listening if max_clients *)
-       info_f "New connection: %s" (Identity.host conn#identity)
+       info_f "New connection: %s" (Utils_Identity.host (Server_Connection.identity conn))
        >> self#loop (self#accept ()) ((self#listen conn) :: listeners)
 
     (* second case: some listener/s answered *)
     | ExtLwt.Second (values, remaining_listeners) ->
        (* then we loop over all the received values (pairs connection
-          x Message.t) and we handle the message. we then decide
+          x Utils_Message.t) and we handle the message. we then decide
           whether we want to keep listening on that connection *)
        Lwt_list.fold_left_s
          (fun listeners (conn, ev) ->
@@ -112,18 +109,18 @@ class virtual skeleton = object (self)
               self#handle_message conn msg
               >> Lwt.return ((self#listen conn) :: listeners)
            | Exception End_of_file ->
-              info_f "Closed connection: %s" (Identity.host conn#identity)
+              info_f "Closed connection: %s" (Utils_Identity.host (Server_Connection.identity conn))
               >> self#on_close_connection conn
               >> Lwt.return listeners
-           | Exception (Error.Exception err) ->
-              conn#send Message.(make
-                                   (Prefix.Servername "127.0.0.1") (*FIXME*)
-                                   (Command.Err err))
+           | Exception (Utils_Error.Exception err) ->
+              Server_Connection.send conn Utils_Message.(make
+                                         (Utils_Prefix.Servername "127.0.0.1") (*FIXME*)
+                                         (Utils_Command.Err err))
               >> Lwt.return ((self#listen conn) :: listeners)
            | Exception e ->
               warning_f
                 ~exn:e
-                "[%s] Dropping connection because of unexpected exception" (Identity.host conn#identity)
+                "[%s] Dropping connection because of unexpected exception" (Utils_Identity.host (Server_Connection.identity conn))
               >> self#on_close_connection conn
               >> Lwt.return listeners)
          remaining_listeners
